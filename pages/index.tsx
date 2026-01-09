@@ -1,12 +1,26 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { createClient } from "@supabase/supabase-js";
+import { useRouter } from "next/router";
 
-export default function Moodtude() {
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
+
+export default function Home() {
   const [entry, setEntry] = useState("");
   const [reply, setReply] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [user, setUser] = useState<any>(null);
+  const router = useRouter();
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      if (!data.user) router.push("/login");
+      else setUser(data.user);
+    });
+  }, []);
 
   async function submit() {
-    setLoading(true);
     const res = await fetch("/api/ai", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -14,22 +28,24 @@ export default function Moodtude() {
     });
     const data = await res.json();
     setReply(data.reply);
-    setLoading(false);
+
+    await supabase.from("journals").insert({
+      user_id: user.id,
+      content: entry,
+      ai_reply: data.reply
+    });
   }
 
   return (
     <main style={{ maxWidth: 600, margin: "auto", padding: 24 }}>
       <h1>🧠 Moodtude</h1>
-      <p>Your personal AI mental health journal</p>
       <textarea
         value={entry}
         onChange={e => setEntry(e.target.value)}
         placeholder="How did your day go?"
         style={{ width: "100%", height: 120 }}
       />
-      <button onClick={submit} disabled={loading}>
-        {loading ? "Thinking..." : "Get Encouragement"}
-      </button>
+      <button onClick={submit}>Save & Get Encouragement</button>
       {reply && <p style={{ marginTop: 16 }}>{reply}</p>}
     </main>
   );
